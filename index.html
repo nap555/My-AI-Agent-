@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My AI Agent</title>
+<meta name="theme-color" content="#4f46e5">
+<meta name="description" content="My maths tutor, brainstorm partner and all-round helper.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="My AI Agent">
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --ink: #1c2333;
+    --muted: #6b7489;
+    --brand: #4f46e5;
+    --brand-soft: #e8e7fd;
+    --me: #4f46e5;
+    --bot: #ffffff;
+    --border: #dfe3ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12141c;
+      --card: #1b1e29;
+      --ink: #eef0f7;
+      --muted: #98a0b5;
+      --brand: #8b85ff;
+      --brand-soft: #2a2c4a;
+      --me: #5b54e6;
+      --bot: #232736;
+      --border: #2d3245;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 12px 16px 8px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0 0 8px; }
+  .modes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .modes button {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--ink);
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .modes button.active {
+    background: var(--brand-soft);
+    border-color: var(--brand);
+    color: var(--brand);
+    font-weight: 600;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .msg {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    line-height: 1.5;
+    font-size: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .msg.user { align-self: flex-end; background: var(--me); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--bot); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.error { align-self: center; color: #b42318; background: #fef3f2; border: 1px solid #fecdca; font-size: 14px; }
+  form {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+  }
+  textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 16px;
+    background: var(--bg);
+    color: var(--ink);
+    max-height: 120px;
+  }
+  textarea:focus { outline: 2px solid var(--brand); outline-offset: 0; }
+  #send {
+    border: none;
+    background: var(--brand);
+    color: #fff;
+    border-radius: 12px;
+    padding: 0 18px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #send:disabled { opacity: 0.5; cursor: not-allowed; }
+  .footer-row { display: flex; justify-content: space-between; padding: 0 16px 8px; background: var(--card); }
+  .footer-row button { background: none; border: none; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>My AI Agent</h1>
+    <div class="modes" id="modes">
+      <button data-mode="general" class="active">Ask anything</button>
+      <button data-mode="maths">Maths tutor</button>
+      <button data-mode="brainstorm">Brainstorm</button>
+    </div>
+    <p class="hint" id="hint">Ask me about anything: news, maths, English, chess, karate and more.</p>
+  </header>
+
+  <div id="chat" aria-live="polite"></div>
+
+  <div class="footer-row">
+    <button type="button" id="clear">Start a new chat</button>
+    <button type="button" id="install" hidden>Install this app</button>
+  </div>
+
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Type your message..." autocomplete="off"></textarea>
+    <button id="send" type="submit">Send</button>
+  </form>
+
+<script>
+  const HINTS = {
+    general: "Ask me about anything: news, maths, English, chess, karate and more.",
+    maths: "Class 8 Samacheer Kalvi maths. I explain first, then you practice. Hints come before answers.",
+    brainstorm: "Story ideas or study ideas. I ask questions first, then give ideas, then honest feedback."
+  };
+  const STARTERS = {
+    general: "Hi! Ask me anything.",
+    maths: "Hi! Tell me a maths topic from your Class 8 book (like squares, algebra or area), and I will explain it first. Then we practice.",
+    brainstorm: "Hi! Tell me what you want to brainstorm: a funny story idea, a character, or a study trick."
+  };
+
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const hint = document.getElementById("hint");
+
+  let mode = "general";
+  let history = []; // { role: "user" | "model", text }
+
+  function addMessage(text, kind) {
+    const div = document.createElement("div");
+    div.className = "msg " + kind;
+    div.textContent = text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+    return div;
+  }
+
+  function resetChat() {
+    history = [];
+    chat.innerHTML = "";
+    addMessage(STARTERS[mode], "bot");
+  }
+
+  document.getElementById("modes").addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    mode = btn.dataset.mode;
+    document.querySelectorAll(".modes button").forEach((b) => b.classList.toggle("active", b === btn));
+    hint.textContent = HINTS[mode];
+    resetChat();
+  });
+
+  document.getElementById("clear").addEventListener("click", resetChat);
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage(text, "user");
+    history.push({ role: "user", text });
+    input.value = "";
+    input.style.height = "auto";
+    sendBtn.disabled = true;
+
+    const thinking = addMessage("Thinking...", "bot");
+
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, messages: history })
+      });
+      const data = await res.json();
+      thinking.remove();
+      if (!res.ok || !data.reply) {
+        addMessage(data.error || "Something went wrong. Please try again.", "error");
+        history.pop();
+      } else {
+        addMessage(data.reply, "bot");
+        history.push({ role: "model", text: data.reply });
+      }
+    } catch (err) {
+      thinking.remove();
+      addMessage("I could not reach the server. Check your internet and try again.", "error");
+      history.pop();
+    }
+    sendBtn.disabled = false;
+    input.focus();
+  });
+
+  resetChat();
+
+  // ----- Install as an app -----
+  let installEvent = null;
+  const installBtn = document.getElementById("install");
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    installEvent = e;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (!installEvent) return;
+    installEvent.prompt();
+    await installEvent.userChoice;
+    installEvent = null;
+    installBtn.hidden = true;
+  });
+
+  window.addEventListener("appinstalled", () => { installBtn.hidden = true; });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
